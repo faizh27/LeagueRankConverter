@@ -1,3 +1,0 @@
-# Local development only — this file is gitignored, never commit it
-# Copy this to .dev.vars and fill in your key
-RIOT_API_KEY=RGAPI-your-key-here

@@ -1,9 +1,7 @@
 name = "league-rank-converter"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
+workers_dev = true
 
 [vars]
 DEFAULT_REGION = "na1"
-
-# RIOT_API_KEY is stored as a secret, not here
-# Set it with: npx wrangler secret put RIOT_API_KEY
