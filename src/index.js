@@ -23,52 +23,78 @@ const CORS_HEADERS = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Fetches all pages for one tier+division, respects rate limits
-async function fetchDivisionTotal(host, tier, division, apiKey, errors) {
-  let page = 1;
-  let total = 0;
+// Fetches a single page and returns { pageCount, totalEntries }
+// Riot returns a leagueId that's shared across a division — we use page 1
+// to get a sample count, then use the queue endpoint to get the total
+async function fetchLeaguePage(host, tier, division, apiKey, errors) {
+  const url = `https://${host}/lol/league/v4/entries/RANKED_SOLO_5x5/${tier}/${division}?page=1&api_key=${apiKey}`;
 
-  while (true) {
-    const url = `https://${host}/lol/league/v4/entries/RANKED_SOLO_5x5/${tier}/${division}?page=${page}&api_key=${apiKey}`;
-    let res;
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (e) {
+    errors.push(`Fetch error ${tier} ${division}: ${e.message}`);
+    return 0;
+  }
 
+  if (res.status === 429) {
+    const wait = parseInt(res.headers.get("Retry-After") || "2", 10) * 1000;
+    await sleep(wait);
+    return fetchLeaguePage(host, tier, division, apiKey, errors);
+  }
+
+  if (!res.ok) {
+    errors.push(`${tier} ${division}: HTTP ${res.status}`);
+    return 0;
+  }
+
+  const data = await res.json();
+  if (!Array.isArray(data)) return 0;
+
+  // If page 1 is full (205 entries), we need to estimate the total.
+  // We do this by binary-searching for the last non-empty page.
+  if (data.length < 205) {
+    return data.length;
+  }
+
+  // Binary search for last page — costs log2(n) requests instead of n
+  let lo = 1, hi = 500, lastKnownCount = data.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    let midRes;
     try {
-      res = await fetch(url);
+      midRes = await fetch(
+        `https://${host}/lol/league/v4/entries/RANKED_SOLO_5x5/${tier}/${division}?page=${mid}&api_key=${apiKey}`
+      );
     } catch (e) {
-      errors.push(`Network error ${tier} ${division} p${page}: ${e.message}`);
+      errors.push(`Binary search error ${tier} ${division} p${mid}: ${e.message}`);
       break;
     }
 
-    if (res.status === 429) {
-      // Rate limited — back off and retry once
-      const retryAfter = parseInt(res.headers.get("Retry-After") || "2", 10);
-      await sleep(retryAfter * 1000);
+    if (midRes.status === 429) {
+      const wait = parseInt(midRes.headers.get("Retry-After") || "2", 10) * 1000;
+      await sleep(wait);
       continue;
     }
 
-    if (!res.ok) {
-      errors.push(`${tier} ${division} p${page}: HTTP ${res.status}`);
-      break;
+    if (!midRes.ok) break;
+
+    const midData = await midRes.json();
+    if (!Array.isArray(midData) || midData.length === 0) {
+      hi = mid - 1;
+    } else {
+      lastKnownCount = midData.length;
+      lo = mid + 1;
     }
-
-    const data = await res.json();
-
-    if (!Array.isArray(data) || data.length === 0) break;
-
-    total += data.length;
-
-    // Riot returns max 205 per page — if less, we're done
-    if (data.length < 205) break;
-
-    page++;
-    // Small delay between pages to stay within 20 req/s dev key limit
-    await sleep(60);
+    await sleep(55); // stay under 20 req/s
   }
 
-  return total;
+  // Total = full pages * 205 + last page count
+  // lo - 1 = last non-empty page index
+  const lastPage = lo - 1;
+  return (lastPage - 1) * 205 + lastKnownCount;
 }
 
-// Apex tiers (Master, Grandmaster, Challenger) — single endpoint, all entries at once
 async function fetchApexTier(host, tier, apiKey, errors) {
   const endpoint =
     tier === "MASTER"      ? "masterleagues" :
@@ -81,14 +107,14 @@ async function fetchApexTier(host, tier, apiKey, errors) {
   try {
     res = await fetch(url);
   } catch (e) {
-    errors.push(`Network error ${tier}: ${e.message}`);
+    errors.push(`Fetch error ${tier}: ${e.message}`);
     return 0;
   }
 
   if (res.status === 429) {
-    const retryAfter = parseInt(res.headers.get("Retry-After") || "2", 10);
-    await sleep(retryAfter * 1000);
-    return fetchApexTier(host, tier, apiKey, errors); // retry once
+    const wait = parseInt(res.headers.get("Retry-After") || "2", 10) * 1000;
+    await sleep(wait);
+    return fetchApexTier(host, tier, apiKey, errors);
   }
 
   if (!res.ok) {
@@ -106,7 +132,7 @@ export default {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
-    const url = new URL(request.url);
+    const url    = new URL(request.url);
     const region = url.searchParams.get("region") || "na1";
     const debug  = url.searchParams.get("debug") === "1";
     const host   = REGION_HOSTS[region];
@@ -129,47 +155,46 @@ export default {
     const errors = [];
     const divisionCounts = {};
 
-    // Iron–Diamond: fetch each tier sequentially, divisions within a tier in parallel
-    // Sequential tiers avoids bursting all 28 requests at once and hitting 429s
+    // Iron–Diamond: fetch all divisions per tier sequentially to respect subrequest limit
     for (const tier of TIERS) {
-      const counts = await Promise.all(
-        DIVISIONS.map((div) => fetchDivisionTotal(host, tier, div, apiKey, errors))
-      );
-      divisionCounts[tier] = counts.reduce((a, b) => a + b, 0);
-      // Brief pause between tiers to stay comfortably within rate limits
-      await sleep(200);
+      let tierTotal = 0;
+      for (const division of DIVISIONS) {
+        const count = await fetchLeaguePage(host, tier, division, apiKey, errors);
+        tierTotal += count;
+        await sleep(55); // ~18 req/s, safely under the 20/s dev key limit
+      }
+      divisionCounts[tier] = tierTotal;
     }
 
-    // Apex tiers — these are single requests each, fast
+    // Apex tiers — one request each
     divisionCounts["MASTER"]      = await fetchApexTier(host, "MASTER",      apiKey, errors);
     divisionCounts["GRANDMASTER"] = await fetchApexTier(host, "GRANDMASTER", apiKey, errors);
     divisionCounts["CHALLENGER"]  = await fetchApexTier(host, "CHALLENGER",  apiKey, errors);
 
-    const ALL_TIERS = [...TIERS, "MASTER", "GRANDMASTER", "CHALLENGER"];
+    const ALL_TIERS    = [...TIERS, "MASTER", "GRANDMASTER", "CHALLENGER"];
     const totalPlayers = ALL_TIERS.reduce((sum, t) => sum + (divisionCounts[t] || 0), 0);
 
     if (totalPlayers === 0) {
       return new Response(
-        JSON.stringify({ error: "No player data returned — API key may be expired", errors }),
+        JSON.stringify({ error: "No player data — API key may be expired", errors }),
         { status: 502, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
       );
     }
 
-    // Build cumulative top-% from rarest (Challenger) down to most common (Iron)
     const ORDERED_TOP_DOWN = ["CHALLENGER", "GRANDMASTER", "MASTER", "DIAMOND", "EMERALD", "PLATINUM", "GOLD", "SILVER", "BRONZE", "IRON"];
-    let cumulativeFromTop = 0;
+    let cumulative = 0;
     const tiers = {};
 
     for (const tier of ORDERED_TOP_DOWN) {
       const count = divisionCounts[tier] || 0;
       const pct   = (count / totalPlayers) * 100;
-      const topPctStart = cumulativeFromTop;
-      cumulativeFromTop += pct;
+      const start = cumulative;
+      cumulative += pct;
       tiers[tier] = {
         count,
         pct:       Math.round(pct * 10) / 10,
-        topPctMin: Math.round(topPctStart    * 100) / 100,
-        topPctMax: Math.round(cumulativeFromTop * 100) / 100,
+        topPctMin: Math.round(start      * 100) / 100,
+        topPctMax: Math.round(cumulative * 100) / 100,
       };
     }
 
