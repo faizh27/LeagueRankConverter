@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rank Converter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold:      #C89B3C;
+      --gold-dim:  #8A6A24;
+      --ink:       #0A0A0F;
+      --surface:   #12121A;
+      --panel:     #1A1A26;
+      --border:    rgba(200, 155, 60, 0.18);
+      --text:      #E8E0D0;
+      --muted:     #7A7468;
+      --danger:    #C84B4B;
+
+      --iron-c:       #6E7175;
+      --bronze-c:     #A0522D;
+      --silver-c:     #9BA3A8;
+      --gold-c:       #C89B3C;
+      --platinum-c:   #4A9B8E;
+      --emerald-c:    #2E8B57;
+      --diamond-c:    #5BA4CF;
+      --master-c:     #9B59B6;
+      --grandmaster-c:#C0392B;
+      --challenger-c: #F1C40F;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--ink);
+      color: var(--text);
+      font-family: 'Crimson Pro', serif;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    /* Subtle hexagonal background pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(200,155,60,0.06) 0%, transparent 60%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 66L0 50V18L28 2l28 16v32z' fill='none' stroke='rgba(200,155,60,0.04)' stroke-width='1'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.5rem 4rem;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .logo-line {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 0.5rem;
+    }
+
+    .logo-gem {
+      width: 28px;
+      height: 28px;
+      opacity: 0.7;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold);
+      line-height: 1;
+    }
+
+    .tagline {
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-style: italic;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 500px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 2rem 2rem 1.75rem;
+      position: relative;
+    }
+
+    /* corner accents */
+    .card::before, .card::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-color: var(--gold-dim);
+      border-style: solid;
+    }
+    .card::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .card::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+    /* ── Form ── */
+    .field { margin-bottom: 1.25rem; }
+
+    label {
+      display: block;
+      font-family: 'Cinzel', serif;
+      font-size: 0.62rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid rgba(200,155,60,0.2);
+      border-radius: 2px;
+      color: var(--text);
+      font-family: 'Crimson Pro', serif;
+      font-size: 1.05rem;
+      padding: 0.6rem 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    select:focus {
+      border-color: var(--gold-dim);
+    }
+
+    input[type="text"]::placeholder { color: var(--muted); font-style: italic; }
+
+    .pct-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .pct-row input { flex: 1; font-size: 1.5rem; font-weight: 600; text-align: center; padding: 0.5rem; }
+
+    .pct-suffix {
+      display: flex;
+      align-items: center;
+      font-family: 'Cinzel', serif;
+      font-size: 0.85rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      padding: 0 0.5rem;
+      white-space: nowrap;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A6A24' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.85rem center;
+      padding-right: 2.5rem;
+      cursor: pointer;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-style: italic;
+      margin-top: 0.4rem;
+    }
+
+    .error-msg {
+      font-size: 0.82rem;
+      color: var(--danger);
+      font-style: italic;
+      margin-top: 0.4rem;
+      display: none;
+    }
+
+    .btn {
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: 0.75rem;
+      background: transparent;
+      border: 1px solid var(--gold-dim);
+      border-radius: 2px;
+      color: var(--gold);
+      font-family: 'Cinzel', serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      position: relative;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: rgba(200,155,60,0.08);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Divider ── */
+    .divider {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 2rem 0;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .divider.visible { opacity: 1; }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-diamond {
+      width: 8px; height: 8px;
+      border: 1px solid var(--gold-dim);
+      transform: rotate(45deg);
+      flex-shrink: 0;
+    }
+
+    /* ── Result card ── */
+    .result {
+      width: 100%;
+      max-width: 500px;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      pointer-events: none;
+    }
+    .result.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .rank-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 1.75rem 1.75rem 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* animated rank color accent bar */
+    .rank-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--rank-color, var(--gold));
+      transition: background 0.5s;
+    }
+
+    .rank-top {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .rank-emblem {
+      font-size: 3.2rem;
+      line-height: 1;
+      flex-shrink: 0;
+      filter: drop-shadow(0 0 12px var(--rank-color, var(--gold)));
+      transition: filter 0.5s;
+    }
+
+    .rank-names { flex: 1; }
+
+    .rank-eyebrow {
+      font-family: 'Cinzel', serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .rank-title {
+      font-family: 'Cinzel', serif;
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      color: var(--rank-color, var(--gold));
+      line-height: 1;
+      transition: color 0.5s;
+    }
+
+    .rank-division {
+      font-size: 0.9rem;
+      font-style: italic;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* ── LP bar ── */
+    .lp-section {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .lp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.5rem;
+    }
+
+    .lp-label {
+      font-family: 'Cinzel', serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .lp-value {
+      font-family: 'Cinzel', serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--rank-color, var(--gold));
+      transition: color 0.5s;
+    }
+
+    .lp-track {
+      height: 4px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .lp-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--rank-color, var(--gold));
+      transition: width 0.7s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.5s;
+    }
+
+    /* ── Tier ladder ── */
+    .tier-ladder {
+      margin-top: 1.25rem;
+      display: flex;
+      gap: 3px;
+    }
+
+    .tier-pip {
+      flex: 1;
+      height: 3px;
+      border-radius: 1px;
+      background: rgba(255,255,255,0.06);
+      transition: background 0.4s;
+      position: relative;
+    }
+
+    .tier-pip.active { background: var(--rank-color, var(--gold)); }
+    .tier-pip.past   { background: rgba(200,155,60,0.25); }
+
+    /* ── Flavor ── */
+    .rank-flavor {
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.9rem;
+      font-style: italic;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Data badge ── */
+    .data-badge {
+      width: 100%;
+      max-width: 500px;
+      margin-top: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transition: opacity 0.4s 0.2s;
+    }
+    .data-badge.visible { opacity: 1; }
+
+    .badge-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--emerald-c);
+      flex-shrink: 0;
+    }
+
+    .badge-text {
+      font-size: 0.7rem;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Loading state ── */
+    .loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 1.5rem;
+      color: var(--muted);
+      font-style: italic;
+      font-size: 0.85rem;
+    }
+    .loading.active { display: flex; }
+
+    .spinner {
+      width: 14px; height: 14px;
+      border: 1.5px solid rgba(200,155,60,0.2);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-style: italic;
+      opacity: 0.6;
+    }
+
+    footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+
+    @media (max-width: 480px) {
+      .page { padding: 2rem 1rem 3rem; }
+      .card { padding: 1.5rem; }
+      h1 { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header class="header">
+    <div class="logo-line">
+      <svg class="logo-gem" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="14,2 26,9 26,19 14,26 2,19 2,9" stroke="#C89B3C" stroke-width="1.2" fill="rgba(200,155,60,0.06)"/>
+        <polygon points="14,7 21,11 21,17 14,21 7,17 7,11" stroke="#C89B3C" stroke-width="0.6" fill="rgba(200,155,60,0.1)"/>
+      </svg>
+      <h1>Rank Converter</h1>
+      <svg class="logo-gem" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="14,2 26,9 26,19 14,26 2,19 2,9" stroke="#C89B3C" stroke-width="1.2" fill="rgba(200,155,60,0.06)"/>
+        <polygon points="14,7 21,11 21,17 14,21 7,17 7,11" stroke="#C89B3C" stroke-width="0.6" fill="rgba(200,155,60,0.1)"/>
+      </svg>
+    </div>
+    <p class="tagline">convert any percentile into a league of legends rank</p>
+  </header>
+
+  <div class="card">
+    <div class="field">
+      <label for="ctx-input">What are you ranking?</label>
+      <input type="text" id="ctx-input" placeholder="savings, bench press, typing speed…" maxlength="60" />
+    </div>
+
+    <div class="field">
+      <label>You are in the top…</label>
+      <div class="pct-row">
+        <input type="number" id="pct-input" min="0.01" max="100" step="any" placeholder="—" />
+        <span class="pct-suffix">% of people</span>
+      </div>
+      <p class="hint">Lower % = rarer = higher rank &nbsp;·&nbsp; top 1% = Challenger</p>
+      <p class="error-msg" id="error-msg">Enter a number between 0.01 and 100</p>
+    </div>
+
+    <div class="field">
+      <label for="region-select">Region</label>
+      <select id="region-select">
+        <option value="na1">NA</option>
+        <option value="euw1">EUW</option>
+        <option value="kr">KR</option>
+        <option value="eune1">EUNE</option>
+        <option value="br1">BR</option>
+        <option value="jp1">JP</option>
+        <option value="la1">LAN</option>
+        <option value="la2">LAS</option>
+        <option value="oc1">OCE</option>
+        <option value="tr1">TR</option>
+        <option value="ru">RU</option>
+      </select>
+    </div>
+
+    <button class="btn" id="go-btn" onclick="go()">Convert to Rank</button>
+  </div>
+
+  <div class="divider" id="divider">
+    <div class="divider-line"></div>
+    <div class="divider-diamond"></div>
+    <div class="divider-line"></div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="rank-card" id="rank-card">
+      <div class="rank-top">
+        <div class="rank-emblem" id="rank-emblem"></div>
+        <div class="rank-names">
+          <p class="rank-eyebrow" id="rank-eyebrow"></p>
+          <p class="rank-title"  id="rank-title"></p>
+          <p class="rank-division" id="rank-division"></p>
+        </div>
+      </div>
+
+      <div class="lp-section">
+        <div class="lp-header">
+          <span class="lp-label">League Points</span>
+          <span class="lp-value" id="lp-value"></span>
+        </div>
+        <div class="lp-track">
+          <div class="lp-fill" id="lp-fill"></div>
+        </div>
+      </div>
+
+      <div class="tier-ladder" id="tier-ladder"></div>
+      <p class="rank-flavor" id="rank-flavor"></p>
+    </div>
+  </div>
+
+  <div class="data-badge" id="data-badge">
+    <div class="badge-dot"></div>
+    <span class="badge-text" id="badge-text"></span>
+  </div>
+
+  <footer>
+    <p>Powered by <a href="https://github.com/faizh27/LeagueRankConverter" target="_blank">LeagueRankConverter</a> &nbsp;·&nbsp; Not affiliated with Riot Games</p>
+  </footer>
+
+</div>
+
+<script>
+  const WORKER_URL = "https://league-rank-converter.league-rank-converter.workers.dev";
+
+  const RANK_META = {
+    CHALLENGER:  { emoji: "👑", color: "#F1C40F", flavor: "The 0.1%. An empty lobby — no one else qualified." },
+    GRANDMASTER: { emoji: "🔥", color: "#C0392B", flavor: "Retire early. Play forever. The grind paid off." },
+    MASTER:      { emoji: "⚔️",  color: "#9B59B6", flavor: "Fewer than 1 in 37 reach this tier. Genuinely elite." },
+    DIAMOND:     { emoji: "💎", color: "#5BA4CF", flavor: "The top echelon of normal play. Most only dream of this." },
+    EMERALD:     { emoji: "💚", color: "#2E8B57", flavor: "Legitimately ahead of the curve. You know what you're doing." },
+    PLATINUM:    { emoji: "🦾", color: "#4A9B8E", flavor: "Top quarter. The game is clicking for you." },
+    GOLD:        { emoji: "🥇", color: "#C89B3C", flavor: "Above average — better than 60% of everyone ranked." },
+    SILVER:      { emoji: "🥈", color: "#9BA3A8", flavor: "In the thick of it. The most contested bracket." },
+    BRONZE:      { emoji: "🥉", color: "#A0522D", flavor: "The grind is real. Every point is earned here." },
+    IRON:        { emoji: "🔩", color: "#6E7175", flavor: "Just getting started. The only way is up." },
+  };
+
+  const TOP_DOWN = ["CHALLENGER","GRANDMASTER","MASTER","DIAMOND","EMERALD","PLATINUM","GOLD","SILVER","BRONZE","IRON"];
+  const DIVISIONS = ["I","II","III","IV"];
+
+  // Cache fetched distribution data per region
+  const cache = {};
+
+  async function fetchDistribution(region) {
+    if (cache[region]) return cache[region];
+    const res = await fetch(`${WORKER_URL}?region=${region}`);
+    if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+    const data = await res.json();
+    cache[region] = data;
+    return data;
+  }
+
+  function getRankFromPct(topPct, distribution) {
+    for (const tier of TOP_DOWN) {
+      const t = distribution.tiers[tier];
+      if (topPct >= t.topPctMin && topPct <= t.topPctMax) {
+        // Position within this tier (0 = bottom of tier, 1 = top)
+        const span     = t.topPctMax - t.topPctMin;
+        const pos      = span > 0 ? (topPct - t.topPctMin) / span : 0;
+        const progress = 1 - pos; // flip: lower topPct = higher rank within tier
+
+        let division = null;
+        if (tier !== "CHALLENGER" && tier !== "GRANDMASTER" && tier !== "MASTER") {
+          const divIdx = Math.min(3, Math.floor(pos * 4));
+          division = DIVISIONS[divIdx];
+        }
+
+        const lp = Math.round(((progress * 4) % 1) * 100);
+        return { tier, division, lp, progress };
+      }
+    }
+    // Fallback to Iron IV
+    return { tier: "IRON", division: "IV", lp: 0, progress: 0 };
+  }
+
+  function setRankColor(color) {
+    document.getElementById("rank-card").style.setProperty("--rank-color", color);
+    document.getElementById("rank-title").style.color = color;
+    document.getElementById("lp-value").style.color = color;
+    document.getElementById("lp-fill").style.background = color;
+    document.getElementById("rank-emblem").style.filter = `drop-shadow(0 0 14px ${color})`;
+  }
+
+  function renderResult(result, distribution, ctx) {
+    const { tier, division, lp } = result;
+    const meta = RANK_META[tier];
+
+    setRankColor(meta.color);
+
+    document.getElementById("rank-emblem").textContent   = meta.emoji;
+    document.getElementById("rank-eyebrow").textContent  = ctx ? `Your ${ctx} rank` : "Your League Rank";
+    document.getElementById("rank-title").textContent    = tier.charAt(0) + tier.slice(1).toLowerCase();
+    document.getElementById("rank-division").textContent = division ? `Division ${division}` : "Apex Tier";
+    document.getElementById("rank-flavor").textContent   = meta.flavor;
+    document.getElementById("lp-value").textContent      = `${lp} LP`;
+    document.getElementById("lp-fill").style.width       = `${lp}%`;
+
+    // Tier ladder pips
+    const ladder = document.getElementById("tier-ladder");
+    ladder.innerHTML = "";
+    const currentIdx = TOP_DOWN.indexOf(tier);
+    TOP_DOWN.forEach((t, i) => {
+      const pip = document.createElement("div");
+      pip.className = "tier-pip" + (i === currentIdx ? " active" : i > currentIdx ? " past" : "");
+      if (i === currentIdx) pip.style.background = meta.color;
+      pip.title = t.charAt(0) + t.slice(1).toLowerCase();
+      ladder.appendChild(pip);
+    });
+
+    // Badge
+    document.getElementById("badge-text").textContent =
+      `Season 16 (2026) data · ${distribution.totalPlayers.toLocaleString()} ranked players · ${distribution.region.toUpperCase()}`;
+
+    // Show elements
+    document.getElementById("divider").classList.add("visible");
+    document.getElementById("result").classList.add("visible");
+    document.getElementById("data-badge").classList.add("visible");
+  }
+
+  async function go() {
+    const pctRaw  = document.getElementById("pct-input").value.trim();
+    const ctx     = document.getElementById("ctx-input").value.trim();
+    const region  = document.getElementById("region-select").value;
+    const errEl   = document.getElementById("error-msg");
+    const btn     = document.getElementById("go-btn");
+
+    errEl.style.display = "none";
+
+    const pct = parseFloat(pctRaw);
+    if (!pctRaw || isNaN(pct) || pct < 0.01 || pct > 100) {
+      errEl.style.display = "block";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Fetching data…";
+
+    try {
+      const distribution = await fetchDistribution(region);
+      const result       = getRankFromPct(pct, distribution);
+      renderResult(result, distribution, ctx);
+    } catch (err) {
+      errEl.textContent   = "Could not load rank data. Check your connection.";
+      errEl.style.display = "block";
+      console.error(err);
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = "Convert to Rank";
+    }
+  }
+
+  // Allow Enter key to submit
+  document.getElementById("pct-input").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  document.getElementById("ctx-input").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+</script>
+</body>
+</html>
